@@ -7,9 +7,12 @@ services:
       dockerfile: Dockerfile
     container_name: mcp-odoo-server
     ports:
+      # Expose HTTP server on port 8000
+      # Change to "127.0.0.1:8000:8000" to only allow localhost access
       - "8000:8000"
     environment:
-      # Odoo Configuration
+      # Odoo Connection Configuration
+      # Replace with your actual Odoo instance details
       ODOO_URL: "${ODOO_URL:-https://your-odoo-instance.com}"
       ODOO_DB: "${ODOO_DB:-your-database-name}"
       ODOO_USERNAME: "${ODOO_USERNAME:-your-username}"
@@ -18,6 +21,8 @@ services:
       ODOO_VERIFY_SSL: "${ODOO_VERIFY_SSL:-1}"
       
       # Authentication Configuration
+      # Set to 'true' to enable bearer token authentication
+      # When enabled, all requests must include: Authorization: Bearer <token>
       AUTH_ENABLED: "${AUTH_ENABLED:-true}"
       AUTH_DB_PATH: "/app/data/auth.db"
       
@@ -25,14 +30,17 @@ services:
       HTTP_HOST: "0.0.0.0"
       HTTP_PORT: "8000"
       
-      # Debug
+      # Debug Configuration
       DEBUG: "${DEBUG:-0}"
       PYTHONUNBUFFERED: "1"
     
     volumes:
-      # Persist authentication database
+      # Persist authentication database across container restarts
+      # This volume stores client credentials
       - auth-data:/app/data
-      # Optional: Mount logs for external access
+      
+      # Optional: Mount logs directory for external access
+      # Uncomment to access logs from the host
       - ./logs:/app/logs
     
     restart: unless-stopped
@@ -44,9 +52,13 @@ services:
       retries: 3
       start_period: 10s
     
-    # Run the HTTP server instead of direct MCP server
+    # Run the HTTP server with authentication support
+    # For direct MCP stdio mode, change to: ["python", "run_server.py"]
     command: ["python", "http_server.py"]
 
 volumes:
+  # Named volume for authentication database
+  # Data persists even if container is removed
+  # To backup: docker cp mcp-odoo-server:/app/data/auth.db ./backup.db
   auth-data:
     driver: local

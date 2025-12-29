@@ -6,10 +6,12 @@ An MCP server implementation that integrates with Odoo ERP systems, enabling AI 
 
 * **Comprehensive Odoo Integration**: Full access to Odoo models, records, and methods
 * **XML-RPC Communication**: Secure connection to Odoo instances via XML-RPC
+* **Bearer Token Authentication**: Secure your MCP server with client database authentication
 * **Flexible Configuration**: Support for config files and environment variables
 * **Resource Pattern System**: URI-based access to Odoo data structures
 * **Error Handling**: Clear error messages for common Odoo API issues
 * **Stateless Operations**: Clean request/response cycle for reliable integration
+* **Docker Support**: Ready-to-use Docker and Docker Compose configuration
 
 ## Tools
 
@@ -106,7 +108,41 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
-### Docker
+### Docker Compose (Recommended)
+
+The easiest way to deploy with authentication support:
+
+1. Copy the environment template:
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` with your Odoo credentials and enable authentication:
+```bash
+# .env
+ODOO_URL=https://your-odoo-instance.com
+ODOO_DB=your-database-name
+ODOO_USERNAME=your-username
+ODOO_PASSWORD=your-password-or-api-key
+AUTH_ENABLED=true
+```
+
+3. Start the server:
+```bash
+docker-compose up -d
+```
+
+4. Create an authentication client:
+```bash
+docker-compose exec mcp-odoo python manage_auth.py create my-client
+# Save the generated bearer token!
+```
+
+5. Access the server at http://localhost:8000
+
+For detailed authentication setup, see [AUTHENTICATION.md](AUTHENTICATION.md).
+
+### Docker (Standalone)
 
 ```json
 {

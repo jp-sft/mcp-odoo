@@ -195,14 +195,14 @@ pip install odoo-mcp
 # Using the installed package
 odoo-mcp
 
-# Using the MCP development tools
-mcp dev odoo_mcp/server.py
+# Using the FastMCP development tools
+fastmcp dev odoo_mcp/server.py
 
 # With additional dependencies
-mcp dev odoo_mcp/server.py --with pandas --with numpy
+fastmcp dev odoo_mcp/server.py --with pandas --with numpy
 
 # Mount local code for development
-mcp dev odoo_mcp/server.py --with-editable .
+fastmcp dev odoo_mcp/server.py --with-editable .
 ```
 
 ## Build

@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN mkdir -p /app/logs && chmod 777 /app/logs && \
     mkdir -p /app/data && chmod 777 /app/data
 
 # Install Python dependencies and the package
-RUN pip install --no-cache-dir "mcp[cli]" aiohttp && \
+RUN pip install --no-cache-dir fastmcp && \
     pip install --no-cache-dir -e .
 
 # Set environment variables (can be overridden at runtime)

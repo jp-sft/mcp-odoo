@@ -13,14 +13,17 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
 ]
-keywords = ["odoo", "mcp", "server"]
+keywords = ["odoo", "mcp", "server", "fastmcp"]
 authors = [
     {name = "Lê Anh Tuấn", email = "justin.le.1105@gmail.com"}
 ]
 dependencies = [
-    "mcp>=0.1.1",
+    "fastmcp>=2.0.0,<3",
     "requests>=2.31.0",
     "pypi-xmlrpc==2020.12.3",
 ]
@@ -48,7 +51,7 @@ packages = ["odoo_mcp"]
 
 [tool.black]
 line-length = 88
-target-version = ["py310"]
+target-version = ["py310", "py311", "py312", "py313"]
 
 [tool.isort]
 profile = "black"

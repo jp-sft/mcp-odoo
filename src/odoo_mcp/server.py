@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, AsyncIterator, Dict, List, Optional, Union, cast
 
-from mcp.server.fastmcp import Context, FastMCP
+from fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 
 from .odoo_client import OdooClient, get_odoo_client
@@ -41,8 +41,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
 # Create MCP server
 mcp = FastMCP(
     "Odoo MCP Server",
-    description="MCP Server for interacting with Odoo ERP systems",
-    dependencies=["requests"],
+    instructions="MCP Server for interacting with Odoo ERP systems",
     lifespan=app_lifespan,
 )
 

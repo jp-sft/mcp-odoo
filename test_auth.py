@@ -7,10 +7,19 @@ import sys
 import os
 import tempfile
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Import auth module directly without loading the full package
+# This avoids loading server.py and its MCP dependencies
+import importlib.util
+from pathlib import Path
 
-from odoo_mcp.auth import AuthDatabase, validate_bearer_token
+spec = importlib.util.spec_from_file_location(
+    "auth", 
+    Path(__file__).parent / "src" / "odoo_mcp" / "auth.py"
+)
+auth_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(auth_module)
+AuthDatabase = auth_module.AuthDatabase
+validate_bearer_token = auth_module.validate_bearer_token
 
 def test_authentication():
     """Test the complete authentication flow"""

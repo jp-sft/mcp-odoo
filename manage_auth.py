@@ -7,10 +7,16 @@ import argparse
 import sys
 from pathlib import Path
 
-# Add src directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-from odoo_mcp.auth import AuthDatabase
+# Import auth module directly without loading the full package
+# This avoids loading server.py and its MCP dependencies
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "auth", 
+    Path(__file__).parent / "src" / "odoo_mcp" / "auth.py"
+)
+auth_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(auth_module)
+AuthDatabase = auth_module.AuthDatabase
 
 
 def main():

@@ -2,6 +2,13 @@
 
 An MCP server implementation that integrates with Odoo ERP systems, enabling AI assistants to interact with Odoo data and functionality through the Model Context Protocol.
 
+## 📚 Documentation
+
+- **[Quick Start Guide](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Authentication Guide](AUTHENTICATION.md)** - Complete authentication documentation
+- **[Architecture Overview](ARCHITECTURE.md)** - System design and technical details
+- **[Example Client](example_client.py)** - Python client demonstrating usage
+
 ## Features
 
 * **Comprehensive Odoo Integration**: Full access to Odoo models, records, and methods
@@ -223,6 +230,54 @@ When using the MCP tools for Odoo, pay attention to these parameter formatting g
 2. **Fields Parameter**:
    * Should be an array of field names: `["name", "email", "phone"]`
    * The server will try to parse string inputs as JSON
+
+## Example Usage
+
+See [example_client.py](example_client.py) for a complete example of using the authenticated server:
+
+```python
+import requests
+
+# Configure authentication
+headers = {
+    "Authorization": "Bearer YOUR_TOKEN_HERE",
+    "Content-Type": "application/json"
+}
+
+# List all tools
+response = requests.post("http://localhost:8000/mcp", 
+    headers=headers,
+    json={"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+)
+
+# Execute a tool
+response = requests.post("http://localhost:8000/mcp",
+    headers=headers,
+    json={
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "search_employee",
+            "arguments": {"name": "John", "limit": 5}
+        },
+        "id": 1
+    }
+)
+```
+
+Run the example:
+```bash
+# 1. Get your token
+docker-compose exec mcp-odoo python manage_auth.py create my-client
+
+# 2. Edit example_client.py and add your token
+
+# 3. Install requests (if needed)
+pip install requests
+
+# 4. Run the example
+python example_client.py
+```
 
 ## License
 

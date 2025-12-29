@@ -1,18 +1,12 @@
 #!/usr/bin/env python
 """
 Standalone script to run the Odoo MCP server 
-Uses the same approach as in the official MCP SDK examples
+Uses the same approach as in the official FastMCP examples
 """
 import sys
 import os
-import asyncio
-import anyio
 import logging
 import datetime
-
-from mcp.server.stdio import stdio_server
-from mcp.server.lowlevel import Server
-import mcp.types as types
 
 from odoo_mcp.server import mcp  # FastMCP instance from our code
 
@@ -51,7 +45,7 @@ def setup_logging():
 
 def main() -> int:
     """
-    Run the MCP server based on the official examples
+    Run the MCP server based on the official FastMCP examples
     """
     logger = setup_logging()
     
@@ -68,17 +62,10 @@ def main() -> int:
         
         logger.info(f"MCP object type: {type(mcp)}")
         
-        # Run server in stdio mode like the official examples
-        async def arun():
-            logger.info("Starting Odoo MCP server with stdio transport...")
-            async with stdio_server() as streams:
-                logger.info("Stdio server initialized, running MCP server...")
-                await mcp._mcp_server.run(
-                    streams[0], streams[1], mcp._mcp_server.create_initialization_options()
-                )
-                
-        # Run server
-        anyio.run(arun)
+        # Run server in stdio mode - FastMCP v2 default transport
+        logger.info("Starting Odoo MCP server with stdio transport...")
+        mcp.run(transport="stdio")
+        
         logger.info("MCP server stopped normally")
         return 0
         

@@ -1,61 +1,74 @@
 """
 Authentication module for MCP Odoo server
-Provides bearer token authentication with client database support
+Provides bearer token authentication with PostgreSQL database support
 """
 
 import hashlib
 import os
 import secrets
-import sqlite3
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Tuple
+
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
 
 
 class AuthDatabase:
-    """Manages client credentials in SQLite database"""
+    """Manages client credentials in PostgreSQL database"""
 
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_config: dict = None):
         """
         Initialize authentication database
 
         Args:
-            db_path: Path to SQLite database file. If None, uses default path.
+            db_config: Database configuration dict. If None, uses environment variables.
+                      For PostgreSQL: {host, port, dbname, user, password}
         """
-        if db_path is None:
-            db_path = os.environ.get(
-                "AUTH_DB_PATH", "/app/data/auth.db"
-            )
+        if db_config is None:
+            db_config = {
+                'host': os.environ.get('AUTH_DB_HOST', 'localhost'),
+                'port': os.environ.get('AUTH_DB_PORT', '5432'),
+                'dbname': os.environ.get('AUTH_DB_NAME', 'mcp_auth'),
+                'user': os.environ.get('AUTH_DB_USER', 'mcp_user'),
+                'password': os.environ.get('AUTH_DB_PASSWORD', 'mcp_password'),
+            }
 
-        # Create directory if it doesn't exist
-        db_dir = Path(db_path).parent
-        db_dir.mkdir(parents=True, exist_ok=True)
+        if not POSTGRES_AVAILABLE:
+            raise ImportError("psycopg2 is required for PostgreSQL support")
 
-        self.db_path = db_path
+        self.db_config = db_config
         self._init_database()
+
+    def _get_connection(self):
+        """Get database connection"""
+        return psycopg2.connect(**self.db_config)
 
     def _init_database(self):
         """Initialize database schema"""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS clients (
+                        id SERIAL PRIMARY KEY,
+                        client_name VARCHAR(255) NOT NULL UNIQUE,
+                        token_hash VARCHAR(64) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_used TIMESTAMP,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        description TEXT
+                    )
                 """
-                CREATE TABLE IF NOT EXISTS clients (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    client_name TEXT NOT NULL UNIQUE,
-                    token_hash TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_used TIMESTAMP,
-                    is_active INTEGER DEFAULT 1,
-                    description TEXT
                 )
-            """
-            )
-            cursor.execute(
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_token_hash ON clients(token_hash)
                 """
-                CREATE INDEX IF NOT EXISTS idx_token_hash ON clients(token_hash)
-            """
-            )
+                )
             conn.commit()
 
     @staticmethod
@@ -92,21 +105,22 @@ class AuthDatabase:
         token_hash = self._hash_token(token)
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    INSERT INTO clients (client_name, token_hash, description)
-                    VALUES (?, ?, ?)
-                """,
-                    (client_name, token_hash, description),
-                )
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        """
+                        INSERT INTO clients (client_name, token_hash, description)
+                        VALUES (%s, %s, %s)
+                        RETURNING id
+                    """,
+                        (client_name, token_hash, description),
+                    )
+                    client_id = cursor.fetchone()[0]
                 conn.commit()
-                client_id = cursor.lastrowid
 
             return client_id, token
 
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
             raise ValueError(f"Client '{client_name}' already exists")
 
     def validate_token(self, token: str) -> bool:
@@ -121,29 +135,29 @@ class AuthDatabase:
         """
         token_hash = self._hash_token(token)
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT id FROM clients
-                WHERE token_hash = ? AND is_active = 1
-            """,
-                (token_hash,),
-            )
-            result = cursor.fetchone()
-
-            if result:
-                # Update last_used timestamp
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    UPDATE clients
-                    SET last_used = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                    SELECT id FROM clients
+                    WHERE token_hash = %s AND is_active = TRUE
                 """,
-                    (result[0],),
+                    (token_hash,),
                 )
-                conn.commit()
-                return True
+                result = cursor.fetchone()
+
+                if result:
+                    # Update last_used timestamp
+                    cursor.execute(
+                        """
+                        UPDATE clients
+                        SET last_used = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """,
+                        (result[0],),
+                    )
+                    conn.commit()
+                    return True
 
         return False
 
@@ -154,17 +168,16 @@ class AuthDatabase:
         Returns:
             List of client dictionaries
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, client_name, created_at, last_used, is_active, description
+                    FROM clients
+                    ORDER BY created_at DESC
                 """
-                SELECT id, client_name, created_at, last_used, is_active, description
-                FROM clients
-                ORDER BY created_at DESC
-            """
-            )
-            return [dict(row) for row in cursor.fetchall()]
+                )
+                return [dict(row) for row in cursor.fetchall()]
 
     def deactivate_client(self, client_name: str) -> bool:
         """
@@ -176,18 +189,18 @@ class AuthDatabase:
         Returns:
             True if client was deactivated, False if not found
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE clients
-                SET is_active = 0
-                WHERE client_name = ?
-            """,
-                (client_name,),
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clients
+                    SET is_active = FALSE
+                    WHERE client_name = %s
+                """,
+                    (client_name,),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
 
     def activate_client(self, client_name: str) -> bool:
         """
@@ -199,18 +212,18 @@ class AuthDatabase:
         Returns:
             True if client was activated, False if not found
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE clients
-                SET is_active = 1
-                WHERE client_name = ?
-            """,
-                (client_name,),
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clients
+                    SET is_active = TRUE
+                    WHERE client_name = %s
+                """,
+                    (client_name,),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
 
     def delete_client(self, client_name: str) -> bool:
         """
@@ -222,17 +235,17 @@ class AuthDatabase:
         Returns:
             True if client was deleted, False if not found
         """
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                DELETE FROM clients
-                WHERE client_name = ?
-            """,
-                (client_name,),
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM clients
+                    WHERE client_name = %s
+                """,
+                    (client_name,),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
 
 
 def get_auth_database() -> Optional[AuthDatabase]:

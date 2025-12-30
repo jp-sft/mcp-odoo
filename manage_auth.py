@@ -4,6 +4,7 @@ Command-line tool to manage authentication clients
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -48,12 +49,12 @@ def main():
     delete_parser = subparsers.add_parser("delete", help="Delete a client permanently")
     delete_parser.add_argument("client_name", help="Name of the client")
 
-    # Database path argument (optional, for all commands)
-    parser.add_argument(
-        "--db-path",
-        help="Path to authentication database (default: /app/data/auth.db)",
-        default=None,
-    )
+    # Database connection arguments (for PostgreSQL)
+    parser.add_argument("--db-host", help="Database host (default: localhost)", default=None)
+    parser.add_argument("--db-port", help="Database port (default: 5432)", default=None)
+    parser.add_argument("--db-name", help="Database name (default: mcp_auth)", default=None)
+    parser.add_argument("--db-user", help="Database user (default: mcp_user)", default=None)
+    parser.add_argument("--db-password", help="Database password", default=None)
 
     args = parser.parse_args()
 
@@ -61,8 +62,26 @@ def main():
         parser.print_help()
         return 1
 
+    # Build database config from arguments or environment
+    db_config = {
+        'host': args.db_host or os.environ.get('AUTH_DB_HOST', 'localhost'),
+        'port': args.db_port or os.environ.get('AUTH_DB_PORT', '5432'),
+        'dbname': args.db_name or os.environ.get('AUTH_DB_NAME', 'mcp_auth'),
+        'user': args.db_user or os.environ.get('AUTH_DB_USER', 'mcp_user'),
+        'password': args.db_password or os.environ.get('AUTH_DB_PASSWORD', 'mcp_password'),
+    }
+
     # Initialize database
-    auth_db = AuthDatabase(db_path=args.db_path)
+    try:
+        auth_db = AuthDatabase(db_config=db_config)
+    except Exception as e:
+        print(f"✗ Failed to connect to database: {e}", file=sys.stderr)
+        print(f"\nConnection details:", file=sys.stderr)
+        print(f"  Host: {db_config['host']}", file=sys.stderr)
+        print(f"  Port: {db_config['port']}", file=sys.stderr)
+        print(f"  Database: {db_config['dbname']}", file=sys.stderr)
+        print(f"  User: {db_config['user']}", file=sys.stderr)
+        return 1
 
     if args.command == "create":
         try:

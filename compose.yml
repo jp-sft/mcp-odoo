@@ -1,11 +1,30 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-odoo-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mcp_auth}
+      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcp_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   mcp-odoo:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: mcp-odoo-server
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       # Expose HTTP server on port 8000
       # Change to "127.0.0.1:8000:8000" to only allow localhost access
@@ -24,7 +43,12 @@ services:
       # Set to 'true' to enable bearer token authentication
       # When enabled, all requests must include: Authorization: Bearer <token>
       AUTH_ENABLED: "${AUTH_ENABLED:-true}"
-      AUTH_DB_PATH: "/app/data/auth.db"
+      AUTH_DB_TYPE: "postgres"
+      AUTH_DB_HOST: "postgres"
+      AUTH_DB_PORT: "5432"
+      AUTH_DB_NAME: "${POSTGRES_DB:-mcp_auth}"
+      AUTH_DB_USER: "${POSTGRES_USER:-mcp_user}"
+      AUTH_DB_PASSWORD: "${POSTGRES_PASSWORD:-mcp_password}"
       
       # HTTP Server Configuration
       HTTP_HOST: "0.0.0.0"
@@ -35,12 +59,7 @@ services:
       PYTHONUNBUFFERED: "1"
     
     volumes:
-      # Persist authentication database across container restarts
-      # This volume stores client credentials
-      - auth-data:/app/data
-      
       # Optional: Mount logs directory for external access
-      # Uncomment to access logs from the host
       - ./logs:/app/logs
     
     restart: unless-stopped
@@ -57,8 +76,7 @@ services:
     command: ["python", "http_server.py"]
 
 volumes:
-  # Named volume for authentication database
+  # Named volume for PostgreSQL database
   # Data persists even if container is removed
-  # To backup: docker cp mcp-odoo-server:/app/data/auth.db ./backup.db
-  auth-data:
+  postgres-data:
     driver: local

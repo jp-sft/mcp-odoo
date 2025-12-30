@@ -2,14 +2,23 @@
 
 An MCP server implementation that integrates with Odoo ERP systems, enabling AI assistants to interact with Odoo data and functionality through the Model Context Protocol.
 
+## 📚 Documentation
+
+- **[Quick Start Guide](QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Authentication Guide](AUTHENTICATION.md)** - Complete authentication documentation
+- **[Architecture Overview](ARCHITECTURE.md)** - System design and technical details
+- **[Example Client](example_client.py)** - Python client demonstrating usage
+
 ## Features
 
 * **Comprehensive Odoo Integration**: Full access to Odoo models, records, and methods
 * **XML-RPC Communication**: Secure connection to Odoo instances via XML-RPC
+* **Bearer Token Authentication**: Secure your MCP server with client database authentication
 * **Flexible Configuration**: Support for config files and environment variables
 * **Resource Pattern System**: URI-based access to Odoo data structures
 * **Error Handling**: Clear error messages for common Odoo API issues
 * **Stateless Operations**: Clean request/response cycle for reliable integration
+* **Docker Support**: Ready-to-use Docker and Docker Compose configuration
 
 ## Tools
 
@@ -106,7 +115,41 @@ Add this to your `claude_desktop_config.json`:
 }
 ```
 
-### Docker
+### Docker Compose (Recommended)
+
+The easiest way to deploy with authentication support:
+
+1. Copy the environment template:
+```bash
+cp .env.example .env
+```
+
+2. Edit `.env` with your Odoo credentials and enable authentication:
+```bash
+# .env
+ODOO_URL=https://your-odoo-instance.com
+ODOO_DB=your-database-name
+ODOO_USERNAME=your-username
+ODOO_PASSWORD=your-password-or-api-key
+AUTH_ENABLED=true
+```
+
+3. Start the server:
+```bash
+docker-compose up -d
+```
+
+4. Create an authentication client:
+```bash
+docker-compose exec mcp-odoo python manage_auth.py create my-client
+# Save the generated bearer token!
+```
+
+5. Access the server at http://localhost:8000
+
+For detailed authentication setup, see [AUTHENTICATION.md](AUTHENTICATION.md).
+
+### Docker (Standalone)
 
 ```json
 {
@@ -187,6 +230,54 @@ When using the MCP tools for Odoo, pay attention to these parameter formatting g
 2. **Fields Parameter**:
    * Should be an array of field names: `["name", "email", "phone"]`
    * The server will try to parse string inputs as JSON
+
+## Example Usage
+
+See [example_client.py](example_client.py) for a complete example of using the authenticated server:
+
+```python
+import requests
+
+# Configure authentication
+headers = {
+    "Authorization": "Bearer YOUR_TOKEN_HERE",
+    "Content-Type": "application/json"
+}
+
+# List all tools
+response = requests.post("http://localhost:8000/mcp", 
+    headers=headers,
+    json={"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+)
+
+# Execute a tool
+response = requests.post("http://localhost:8000/mcp",
+    headers=headers,
+    json={
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "search_employee",
+            "arguments": {"name": "John", "limit": 5}
+        },
+        "id": 1
+    }
+)
+```
+
+Run the example:
+```bash
+# 1. Get your token
+docker-compose exec mcp-odoo python manage_auth.py create my-client
+
+# 2. Edit example_client.py and add your token
+
+# 3. Install requests (if needed)
+pip install requests
+
+# 4. Run the example
+python example_client.py
+```
 
 ## License
 
